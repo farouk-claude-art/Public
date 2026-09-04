@@ -1,6 +1,37 @@
 // prompt-protocol.ajs — jArchi
 // Select a view in the Models tree, then run.
+//
+// For every flow relationship on the view:
+//   1. asks for a "Protocol" property value (Cancel = skip, "!stop" = abort)
+//   2. shows it in the connection label via a label expression
+//   3. colours the connection + its label per protocol
+//
+// Requires Archi 4.9 / jArchi 1.3+ for labelExpression.
+
 const KEY = "Protocol";
+
+// ---- settings ---------------------------------------------------------
+const ASK          = true;   // false = only restyle what is already tagged
+const STYLE        = true;   // false = only set properties, leave styling alone
+const LINE_WIDTH   = 2;      // 1..3, or null to leave untouched
+const LABEL_EXPR   = "${name}\n${property:" + KEY + "}";
+
+// Protocol -> colour. Keys are matched case-insensitively; add your own.
+const COLORS = {
+  "HTTPS": "#1B7F3B",
+  "HTTP":  "#B8860B",
+  "SFTP":  "#1F5FA8",
+  "FTP":   "#8A6D1F",
+  "SOAP":  "#7A3E9D",
+  "REST":  "#0F7B8A",
+  "JDBC":  "#A03A6B",
+  "JMS":   "#3F51B5",
+  "MQ":    "#3F51B5",
+  "RPA":   "#C1440E",
+  "FILE":  "#5D6D7E"
+};
+const DEFAULT_COLOR = "#5D6D7E";   // used when the protocol is not in COLORS
+// -----------------------------------------------------------------------
 
 // optional: pre-fill a guess from the relationship label
 function guess(name) {
@@ -12,35 +43,73 @@ function guess(name) {
   return "";
 }
 
+function colorFor(value) {
+  const key = (value || "").trim().toUpperCase();
+  return COLORS[key] || DEFAULT_COLOR;
+}
+
+function style(conn, value) {
+  if (!STYLE) return;
+  const c = colorFor(value);
+  conn.labelExpression = LABEL_EXPR;
+  conn.lineColor = c;
+  conn.fontColor = c;
+  if (LINE_WIDTH) conn.lineWidth = LINE_WIDTH;
+}
+
 const view = $(selection).filter("archimate-diagram-model").first();
 if (!view) {
   console.log("Select a view in the Models tree first.");
 } else {
-  const seen = {};
-  let done = 0, skipped = 0, aborted = false;
+  // group the drawn connections by relationship: one prompt, many connections
+  const rels = {};   // id -> { rel: concept, conns: [diagram connections] }
 
   $(view).find("flow-relationship").each(function (o) {
-    if (aborted) return;
     const rel = o.concept ? o.concept : o;
-    if (seen[rel.id]) return;          // same relationship drawn twice
-    seen[rel.id] = true;
-
-    const current = rel.prop(KEY);
-    const label = (rel.name || "(unnamed flow)") +
-                  "\n" + rel.source.name + "  ->  " + rel.target.name +
-                  (current ? "\n\ncurrent " + KEY + ": " + current : "");
-
-    const value = window.prompt(label + "\n\n" + KEY + " value:",
-                                current || guess(rel.name));
-
-    if (value === null) { skipped++; return; }        // Cancel = skip this one
-    if (value === "!stop") { aborted = true; return; } // type !stop to abort the rest
-    if (value.trim() === "") { skipped++; return; }
-
-    rel.prop(KEY, value.trim());       // updates in place if the key exists
-    done++;
-    console.log("+ " + rel.name + " -> " + KEY + " = " + value.trim());
+    if (!rels[rel.id]) rels[rel.id] = { rel: rel, conns: [] };
+    rels[rel.id].conns.push(o);
   });
 
-  console.log("Set: " + done + " | skipped: " + skipped + (aborted ? " | aborted early" : ""));
+  let done = 0, styled = 0, skipped = 0, aborted = false;
+
+  for (const id in rels) {
+    if (aborted) break;
+    const rel   = rels[id].rel;
+    const conns = rels[id].conns;
+    const current = rel.prop(KEY);
+
+    let value = current;
+
+    if (ASK) {
+      const label = (rel.name || "(unnamed flow)") +
+                    "\n" + rel.source.name + "  ->  " + rel.target.name +
+                    (current ? "\n\ncurrent " + KEY + ": " + current : "");
+
+      const answer = window.prompt(label + "\n\n" + KEY + " value:",
+                                   current || guess(rel.name));
+
+      if (answer === null) {                 // Cancel = skip this one
+        skipped++;
+      } else if (answer === "!stop") {       // type !stop to abort the rest
+        aborted = true;
+        break;
+      } else if (answer.trim() === "") {
+        skipped++;
+      } else {
+        value = answer.trim();
+        rel.prop(KEY, value);                // updates in place if the key exists
+        done++;
+        console.log("+ " + rel.name + " -> " + KEY + " = " + value);
+      }
+    }
+
+    // style every drawn occurrence that ends up with a protocol
+    if (value) {
+      conns.forEach(function (c) { style(c, value); });
+      styled += conns.length;
+    }
+  }
+
+  console.log("Set: " + done + " | styled connections: " + styled +
+              " | skipped: " + skipped + (aborted ? " | aborted early" : ""));
 }
