@@ -1,0 +1,46 @@
+// prompt-protocol.ajs — jArchi
+// Select a view in the Models tree, then run.
+const KEY = "Protocol";
+
+// optional: pre-fill a guess from the relationship label
+function guess(name) {
+  name = name || "";
+  if (/https/i.test(name)) return "HTTPS";
+  if (/http/i.test(name))  return "HTTP";
+  if (/sftp/i.test(name))  return "SFTP";
+  if (/rpa|excel/i.test(name)) return "RPA";
+  return "";
+}
+
+const view = $(selection).filter("archimate-diagram-model").first();
+if (!view) {
+  console.log("Select a view in the Models tree first.");
+} else {
+  const seen = {};
+  let done = 0, skipped = 0, aborted = false;
+
+  $(view).find("flow-relationship").each(function (o) {
+    if (aborted) return;
+    const rel = o.concept ? o.concept : o;
+    if (seen[rel.id]) return;          // same relationship drawn twice
+    seen[rel.id] = true;
+
+    const current = rel.prop(KEY);
+    const label = (rel.name || "(unnamed flow)") +
+                  "\n" + rel.source.name + "  ->  " + rel.target.name +
+                  (current ? "\n\ncurrent " + KEY + ": " + current : "");
+
+    const value = window.prompt(label + "\n\n" + KEY + " value:",
+                                current || guess(rel.name));
+
+    if (value === null) { skipped++; return; }        // Cancel = skip this one
+    if (value === "!stop") { aborted = true; return; } // type !stop to abort the rest
+    if (value.trim() === "") { skipped++; return; }
+
+    rel.prop(KEY, value.trim());       // updates in place if the key exists
+    done++;
+    console.log("+ " + rel.name + " -> " + KEY + " = " + value.trim());
+  });
+
+  console.log("Set: " + done + " | skipped: " + skipped + (aborted ? " | aborted early" : ""));
+}
