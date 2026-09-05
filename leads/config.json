@@ -1,0 +1,31 @@
+{
+  "city": "Casablanca, Maroc",
+  "language": "fr",
+  "region": "MA",
+  "categories": [
+    "piscine",
+    "construction de piscine",
+    "plomberie",
+    "plombier",
+    "chauffagiste",
+    "electricien",
+    "climatisation",
+    "menuiserie",
+    "peintre en batiment",
+    "carrelage",
+    "etancheite",
+    "jardinage paysagiste",
+    "renovation batiment",
+    "serrurier",
+    "vitrier"
+  ],
+  "filters": {
+    "min_rating": 4.7,
+    "strict_greater_than": false,
+    "min_reviews": 5,
+    "require_no_website": true,
+    "require_phone": true,
+    "operational_only": true
+  },
+  "output": "leads_maps.xlsx"
+}
