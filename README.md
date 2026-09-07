@@ -30,6 +30,8 @@ Next.js 14 (App Router) · TypeScript · Tailwind CSS · Framer Motion.
 - **Section entreprises / privatisation** avec formulaire de demande de devis validé
 - **Galerie** façon Instagram (6 vignettes placeholder)
 - **Encart « réservation en direct, 0 % de commission »**
+- **La carte du café** : bandeau « Au comptoir » et entrée de nav qui ouvrent une modale
+  à onglets (Tout / Boissons / Cuisine iranienne), même traitement que la réservation
 
 ## Éditer le contenu
 
@@ -37,6 +39,7 @@ Next.js 14 (App Router) · TypeScript · Tailwind CSS · Framer Motion.
 | --- | --- |
 | `data/ateliers.ts` | ateliers, prix, durées, jours d'ouverture, créneaux, places, formules entreprise |
 | `data/site.ts` | adresse, horaires, réseaux, note Google, vignettes de la galerie |
+| `data/menu.ts` | la carte du café — **incomplète**, voir l'avertissement en tête de fichier |
 | `tailwind.config.ts` | palette (terracotta, ocre, crème, sauge, indigo) |
 
 Les vignettes de la galerie et le visuel du hero sont des dégradés placeholder :

@@ -11,7 +11,7 @@ const liens = [
   { href: "#infos", label: "Infos" },
 ];
 
-export function Nav() {
+export function Nav({ onOuvrirCarte }: { onOuvrirCarte: () => void }) {
   const [compact, setCompact] = useState(false);
 
   useEffect(() => {
@@ -44,6 +44,12 @@ export function Nav() {
               {l.label}
             </a>
           ))}
+          <button
+            onClick={onOuvrirCarte}
+            className="text-sm text-encre/70 transition-colors hover:text-terracotta"
+          >
+            La carte
+          </button>
         </nav>
         <a
           href="#ateliers"

@@ -37,6 +37,12 @@ export function euros(n: number) {
   return `${n} €`;
 }
 
+/** Prix de carte, avec les centimes : 5,50 € — « — » quand le prix manque. */
+export function prixCarte(n: number | null) {
+  if (n === null) return "—";
+  return `${n.toFixed(2).replace(".", ",")} €`;
+}
+
 export function emailValide(v: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim());
 }
