@@ -20,6 +20,15 @@ export const metadata: Metadata = {
   title: `${site.nom} — ${site.baseline}`,
   description:
     "Ateliers peinture sur soie, création de totems et soirées jam au cœur du 5e arrondissement. Réservez en direct, sans intermédiaire.",
+  // Aperçu propre quand le lien est partagé par SMS, WhatsApp ou email.
+  openGraph: {
+    type: "website",
+    locale: "fr_FR",
+    siteName: site.nom,
+    title: `${site.nom} — ${site.baseline}`,
+    description:
+      "Ateliers, soirées jam et privatisation d'entreprise. Réservation en direct.",
+  },
 };
 
 export const viewport: Viewport = {
