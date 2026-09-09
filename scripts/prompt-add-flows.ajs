@@ -1,0 +1,140 @@
+// prompt-add-flows.ajs — jArchi
+// Companion to prompt-protocol.ajs and prompt-component-category.ajs.
+// Select a view in the Models tree, then run.
+//
+// For every Application Component on the view, taken as a SOURCE:
+//   1. asks how many NEW outgoing flows to add from it (0 = skip it)
+//   2. for each one:
+//        a. asks which other component on the view is the target
+//        b. asks the flow's name
+//      then creates the Flow Relationship in the model and draws the
+//      connection on the view
+//
+// Only outgoing flows are asked about per component — a flow A -> B is
+// asked once, from A's turn, never again from B's.
+//
+// This script does NOT ask about Protocol or colour anything: run
+// prompt-protocol.ajs afterwards on the same view to tag the new
+// connections and colour them.
+//
+// Typing "!stop" into any prompt aborts the rest of the run.
+
+const REL_TYPE = "flow-relationship";
+
+function outgoingCount(concept, view) {
+  let n = 0;
+  $(view).find(REL_TYPE).each(function (o) {
+    const rel = o.concept ? o.concept : o;
+    if (rel.source && rel.source.id === concept.id) n++;
+  });
+  return n;
+}
+
+// how many new outgoing flows should we add from this component?
+function askCount(concept, existing) {
+  while (true) {
+    const label = concept.name +
+                  (existing ? "\n(" + existing + " existing outgoing flow" + (existing === 1 ? "" : "s") + " on this view)" : "") +
+                  "\n\nHow many NEW outgoing flows to add from this component?\n(0 to skip, \"!stop\" to abort)";
+    const answer = window.prompt(label, "0");
+
+    if (answer === null) return 0;                       // Cancel = skip this component
+    const trimmed = answer.trim();
+    if (trimmed === "!stop") return "!stop";
+
+    const n = parseInt(trimmed, 10);
+    if (!isNaN(n) && n >= 0 && String(n) === trimmed) return n;
+
+    console.log("! Enter a whole number 0 or greater.");
+  }
+}
+
+// which other component is this particular flow going to?
+function pickTarget(sourceConcept, candidates) {
+  const listStr = candidates.map(function (c, i) { return (i + 1) + ") " + c.concept.name; }).join("\n");
+  while (true) {
+    const answer = window.prompt(
+      sourceConcept.name + "  ->  ?\n\nPick the target component:\n\n" + listStr +
+      "\n\nEnter a number or the exact name (\"!stop\" to abort):");
+
+    if (answer === null) return null;                    // Cancel = skip this flow
+    const trimmed = answer.trim();
+    if (trimmed === "!stop") return "!stop";
+
+    const idx = parseInt(trimmed, 10);
+    if (!isNaN(idx) && String(idx) === trimmed && idx >= 1 && idx <= candidates.length) {
+      return candidates[idx - 1];
+    }
+    const matches = candidates.filter(function (c) {
+      return c.concept.name.toLowerCase() === trimmed.toLowerCase();
+    });
+    if (matches.length === 1) return matches[0];
+
+    console.log("! Unrecognised target '" + trimmed + "' - pick a number from the list or the exact name.");
+  }
+}
+
+// what should this flow be called?
+function askFlowName(sourceConcept, targetConcept) {
+  return window.prompt(sourceConcept.name + "  ->  " + targetConcept.name + "\n\nFlow name:", "");
+}
+
+const view = $(selection).filter("archimate-diagram-model").first();
+if (!view) {
+  console.log("Select a view in the Models tree first.");
+} else {
+  // one entry per distinct Application Component drawn on the view
+  const byId = {};
+  $(view).find("application-component").each(function (o) {
+    const concept = o.concept ? o.concept : o;
+    if (!byId[concept.id]) byId[concept.id] = { concept: concept, objs: [] };
+    byId[concept.id].objs.push(o);
+  });
+
+  const components = Object.keys(byId)
+    .map(function (id) { return byId[id]; })
+    .sort(function (a, b) { return a.concept.name.localeCompare(b.concept.name); });
+
+  if (components.length < 2) {
+    console.log("Need at least two Application Components on the view.");
+  } else {
+    let created = 0, skipped = 0, aborted = false;
+
+    for (let i = 0; i < components.length && !aborted; i++) {
+      const source = components[i];
+      const others = components.filter(function (c) { return c !== source; });
+
+      const existing = outgoingCount(source.concept, view);
+      const count = askCount(source.concept, existing);
+      if (count === "!stop") { aborted = true; break; }
+      if (count === 0) continue;
+
+      for (let f = 1; f <= count && !aborted; f++) {
+        const target = pickTarget(source.concept, others);
+        if (target === null) { skipped++; continue; }
+        if (target === "!stop") { aborted = true; break; }
+
+        const nameAnswer = askFlowName(source.concept, target.concept);
+        if (nameAnswer === null) { skipped++; continue; }
+        if (nameAnswer.trim() === "!stop") { aborted = true; break; }
+        if (nameAnswer.trim() === "") {
+          console.log("! Empty flow name - skipped " + source.concept.name + " -> " + target.concept.name);
+          skipped++;
+          continue;
+        }
+
+        const flowName = nameAnswer.trim();
+        const rel = model.createRelationship(REL_TYPE, flowName, source.concept, target.concept);
+        view.add(rel, source.objs[0], target.objs[0]);
+
+        created++;
+        console.log("+ " + source.concept.name + "  ->  " + target.concept.name + " : " + flowName);
+      }
+    }
+
+    console.log("Flows created: " + created + " | skipped: " + skipped + (aborted ? " | aborted early" : ""));
+    if (created > 0) {
+      console.log("Run prompt-protocol.ajs next to tag protocols and colour the new connections.");
+    }
+  }
+}
