@@ -1,0 +1,139 @@
+// prompt-component-category.ajs — jArchi
+// Companion to prompt-protocol.ajs.
+// Select a view in the Models tree, then run.
+//
+// For every Application Component on the view:
+//   1. asks for a Category: Corporate / Local / Third-Party
+//      (Cancel = skip this component, "!stop" = abort everything)
+//   2. asks for an ID — a trigram (e.g. "ABC") or a Situation ID
+//      (e.g. "SIT-1234"); leave blank to keep/skip
+//   3. shows the ID under the name via a label expression
+//   4. colours the component's fill per category:
+//        green   = Corporate
+//        blue    = Local
+//        violet  = Third-Party
+//
+// Requires Archi 4.9 / jArchi 1.3+ for labelExpression.
+
+const CAT_KEY = "Category";
+const ID_KEY  = "ID";
+
+// ---- settings ---------------------------------------------------------
+const ASK        = true;   // false = only restyle what is already tagged
+const STYLE      = true;   // false = only set properties, leave styling alone
+const LABEL_EXPR = "${name}\n${property:" + ID_KEY + "}";
+
+// Category -> fill/font colour. Key is the canonical value stored in the
+// Category property (case-insensitive on read).
+const CATEGORIES = {
+  "corporate":   { label: "Corporate",   fill: "#2E7D32", font: "#FFFFFF" }, // green
+  "local":       { label: "Local",       fill: "#1565C0", font: "#FFFFFF" }, // blue
+  "third-party": { label: "Third-Party", fill: "#6A1B9A", font: "#FFFFFF" }  // violet
+};
+// -----------------------------------------------------------------------
+
+// map anything the user types (number, letter, full word) onto a canonical key
+function normalizeCategory(v) {
+  const s = (v || "").trim().toLowerCase();
+  if (["1", "c", "corp", "corporate"].indexOf(s) !== -1) return "corporate";
+  if (["2", "l", "loc", "local"].indexOf(s) !== -1) return "local";
+  if (["3", "t", "tp", "third", "third-party", "third party", "3rd party"].indexOf(s) !== -1) return "third-party";
+  return null;
+}
+
+function style(obj, entry) {
+  if (!STYLE) return;
+  if (entry.category) {
+    const c = CATEGORIES[entry.category];
+    obj.fillColor = c.fill;
+    obj.fontColor = c.font;
+  }
+  if (entry.id) {
+    obj.labelExpression = LABEL_EXPR;
+  }
+}
+
+const view = $(selection).filter("archimate-diagram-model").first();
+if (!view) {
+  console.log("Select a view in the Models tree first.");
+} else {
+  // group the drawn objects by concept: one pair of prompts, many occurrences
+  const comps = {};   // id -> { concept, objs: [diagram objects] }
+
+  $(view).find("application-component").each(function (o) {
+    const concept = o.concept ? o.concept : o;
+    if (!comps[concept.id]) comps[concept.id] = { concept: concept, objs: [] };
+    comps[concept.id].objs.push(o);
+  });
+
+  let tagged = 0, styled = 0, skipped = 0, aborted = false;
+
+  for (const id in comps) {
+    if (aborted) break;
+    const concept = comps[id].concept;
+    const objs    = comps[id].objs;
+
+    const currentCat = normalizeCategory(concept.prop(CAT_KEY));
+    const currentId  = concept.prop(ID_KEY);
+
+    let catValue = currentCat;
+    let idValue  = currentId;
+
+    if (ASK) {
+      // ---- category --------------------------------------------------
+      let catAnswer = null;
+      while (true) {
+        const label = concept.name +
+                      "\n\nCategory:\n  1) Corporate  (green)\n  2) Local       (blue)\n  3) Third-Party (violet)" +
+                      (currentCat ? "\n\ncurrent: " + CATEGORIES[currentCat].label : "") +
+                      "\n\nEnter 1/2/3 or the name:";
+        catAnswer = window.prompt(label, currentCat || "");
+
+        if (catAnswer === null) break;              // Cancel = skip this component
+        if (catAnswer === "!stop") { aborted = true; break; }
+
+        const norm = normalizeCategory(catAnswer);
+        if (norm) { catAnswer = norm; break; }
+
+        console.log("! Unrecognised category '" + catAnswer + "' for " + concept.name +
+                    " - enter 1/2/3, Corporate, Local or Third-Party.");
+      }
+
+      if (aborted) break;
+
+      if (catAnswer === null) {
+        skipped++;
+        continue;   // don't touch this component at all
+      }
+
+      catValue = catAnswer;
+      concept.prop(CAT_KEY, CATEGORIES[catValue].label);
+
+      // ---- ID ----------------------------------------------------------
+      const idLabel = concept.name +
+                      "\n\nID (trigram e.g. \"ABC\", or Situation ID e.g. \"SIT-1234\")" +
+                      (currentId ? "\ncurrent: " + currentId : "") +
+                      "\n\nLeave blank to keep / skip:";
+      const idAnswer = window.prompt(idLabel, currentId || "");
+
+      if (idAnswer === "!stop") {
+        aborted = true;
+      } else if (idAnswer !== null && idAnswer.trim() !== "") {
+        idValue = idAnswer.trim();
+        concept.prop(ID_KEY, idValue);
+      }
+
+      tagged++;
+      console.log("+ " + concept.name + " -> " + CAT_KEY + " = " + CATEGORIES[catValue].label +
+                  (idValue ? ", " + ID_KEY + " = " + idValue : ""));
+    }
+
+    if (catValue || idValue) {
+      objs.forEach(function (o) { style(o, { category: catValue, id: idValue }); });
+      styled += objs.length;
+    }
+  }
+
+  console.log("Tagged: " + tagged + " | styled components: " + styled +
+              " | skipped: " + skipped + (aborted ? " | aborted early" : ""));
+}
